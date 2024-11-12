@@ -1,0 +1,44 @@
+---
+title: "hw5_cm3936"
+author: "Carolyn Martinez"
+date: "2024-11-12"
+output: html_document
+---
+
+## Problem 1: Birthday Function 
+
+```{r}
+library(tidyverse)
+sim_regression = function(n) {
+  
+  sim_data = 
+    tibble(
+      x = rnorm(n, mean = 1, sd = 1),
+      y = 2 + 3 * x + rnorm(n, 0, 1)
+    )
+
+  lm_fit = lm(y ~ x, data = sim_data)
+
+  out_df = 
+    tibble(
+      beta0_hat = coef(lm_fit)[1], 
+      beta1_hat = coef(lm_fit)[2] 
+    )
+  
+  return(out_df)}
+
+sim_res = 
+  expand_grid(
+    sample_size = c(2:50), 
+    iter = 1:1000
+  ) |> 
+  mutate(lm_res = map(sample_size, sim_regression)) |> 
+  unnest(lm_res)
+
+
+sim_res |> 
+  filter(sample_size == 30) |> 
+  ggplot(aes(x = beta0_hat, y = beta1_hat)) + #there is a string negative correlation between the intercept and the slope. 
+  geom_point()
+
+```
