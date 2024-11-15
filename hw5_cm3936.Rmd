@@ -3,6 +3,8 @@ title: "Homework 5"
 author: "Carolyn Martinez"
 date: "2024-11-12"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 ```{r loading libraries}
 library(tidyverse)
@@ -88,6 +90,7 @@ power_plot=
       y = "Proportion of Null Rejected")+
       theme_minimal()
 
+power_plot
 ```
 Based on the plot above, it is evident that the relationship between the effect size, the true mu, and the power, or the proportion of the cases where the null is rejected, is a positive one. As the effect size increases the power increases, seemingly in an exponential manner. 
 
@@ -108,6 +111,8 @@ sampavg_plot=
       x = "True mu ",
       y = "Average mu Value")+
       theme_minimal()
+
+sampavg_plot
 ```
 
 
@@ -128,7 +133,123 @@ sampavg_plot2=
       x = "True mu ",
       y = "Average mu Value")+
       theme_minimal()
+
+sampavg_plot2
 ```
 
 Based on the plot above, it is evident that the sample average of mu across tests for which the null is rejected is not approximately equal to the true mu value. This is because as the mu value deviates further from the null value the power increases and therefore more likely to reject the null hypothesis across samples. 
+
+
+## Problem 3: Homocide Data 
+
+```{r homicide data}
+
+homicide_data=
+   read_csv("./homicide-data.csv",na = c("NA", ".", ""))|>
+   mutate(
+      city_state = paste(city, state, sep = ", ")
+   )
+
+```
+
+The raw data has `r nrow(homicide_data)` homicides documented with `r ncol(homicide_data)` variables including the date the homicide was reported, the victims first and last name, their race, age and sex, the city and state of the crime as well as the latitude and the longitude where the crime occurred and the disposition of the case. 
+
+```{r summarize homicides}
+
+summary_table=
+   homicide_data|>
+   group_by(city_state)|>
+  summarize(
+    total_homicides = n(),
+    unsolved_homicides = sum(disposition %in% c("Closed without arrest" , "Open/no arrest"))
+  )
+
+```
+
+```{r baltimore}
+
+baltimore_prop = function(city_state, disposition) {
+ 
+   baltimore=
+   homicide_data|>
+   filter(city_state=="Baltimore, MD")
+   
+   unsolved = sum(baltimore$disposition %in% c("Closed without arrest" , "Open/no arrest"))
+  total_count = nrow(baltimore)
+  
+ prop_test = prop.test(x=unsolved, n = total_count)
+ 
+ tidy_out= broom::tidy(prop_test) 
+ 
+  out_df =
+     tibble( 
+        conf_low = tidy_out$conf.low,              
+        conf_high = tidy_out$conf.high,             
+        sample_estimate = tidy_out$estimate)
+  
+  return(out_df)
+}
+
+```
+
+```{r all cities}
+cities_prop = function(city_state, homicide_data) {
+ 
+cities_data=
+   homicide_data|>
+   filter(city_state == !!city_state)
+
+unsolved_all = 
+   sum(cities_data$disposition %in% c("Closed without arrest" , "Open/no arrest"))
+
+total_count_all = nrow(cities_data)
+  
+ prop_test_all = prop.test(x=unsolved_all, n = total_count_all)
+ 
+ tidy_out_all= broom::tidy(prop_test_all) 
+ 
+  out_df_all =
+     tibble( 
+        conf_low = tidy_out_all$conf.low,              
+        conf_high = tidy_out_all$conf.high,             
+        sample_estimate = tidy_out_all$estimate)|>
+         mutate(
+            ci = paste(conf_low, conf_high, sep = ", "))
+
+  return(out_df_all)
+}
+
+final_results = 
+   homicide_data |> 
+distinct(city_state) |>  
+  mutate(proportionCI = map(city_state, ~ cities_prop(.x, homicide_data))) |>  
+  unnest(proportionCI)|>
+  mutate(city_state = forcats::fct_reorder(city_state, -sample_estimate))
+
+final_results
+```
+
+```{r plots}
+proportion_plots=
+   ggplot(final_results, aes(x=city_state, y= sample_estimate))+
+   geom_point()+
+   geom_errorbar(aes(ymin=conf_low, ymax=conf_high), width=.2,
+                 position=position_dodge(0.05))+
+    labs(
+      title = "Proportion of Unsolved Homicides by City",
+      x = "City",
+      y = "Proportion Unsolved")+
+      theme_minimal()+
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+proportion_plots
+```
+
+
+
+
+
+
+
+
 
