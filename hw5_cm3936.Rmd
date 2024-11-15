@@ -4,41 +4,109 @@ author: "Carolyn Martinez"
 date: "2024-11-12"
 output: html_document
 ---
-
+```{r loading libraries}
+library(tidyverse)
+library(ggplot2)
+```
 ## Problem 1: Birthday Function 
 
 ```{r}
-library(tidyverse)
-sim_regression = function(n) {
-  
-  sim_data = 
-    tibble(
-      x = rnorm(n, mean = 1, sd = 1),
-      y = 2 + 3 * x + rnorm(n, 0, 1)
-    )
+bday_sim = function(n) {
 
-  lm_fit = lm(y ~ x, data = sim_data)
-
-  out_df = 
-    tibble(
-      beta0_hat = coef(lm_fit)[1], 
-      beta1_hat = coef(lm_fit)[2] 
-    )
+  bdays = sample(1:365, size = n, replace = TRUE) 
   
-  return(out_df)}
+  duplicate = length(unique(bdays)) < n
+
+  return(duplicate)
+  
+}
 
 sim_res = 
   expand_grid(
-    sample_size = c(2:50), 
-    iter = 1:1000
+    n = 2:50,
+    iter = 1:10000
   ) |> 
-  mutate(lm_res = map(sample_size, sim_regression)) |> 
-  unnest(lm_res)
-
+  mutate(res = map_lgl(n, bday_sim)) |> 
+  group_by(n) |> 
+  summarize(prob = mean(res)) 
 
 sim_res |> 
-  filter(sample_size == 30) |> 
-  ggplot(aes(x = beta0_hat, y = beta1_hat)) + #there is a string negative correlation between the intercept and the slope. 
-  geom_point()
+  ggplot(aes(x = n, y = prob )) + 
+  geom_line()
+
+```
+
+The results show that the larger the sample size is the higher the probability of having people share birthdays.
+
+## Problem 2: 
+```{r}
+sim_ttest = function(samp_size=30, true_mean, true_sd = 5) {
+  
+  sim_data = 
+    tibble(
+      x = rnorm(samp_size, true_mean, true_sd))
+
+  t_test = t.test(sim_data$x)
+  
+  tidy_result = broom::tidy(t_test)
+ 
+  out_df =
+     tibble(
+        mu_hat = tidy_result$estimate,
+        p_value = tidy_result$p.value)
+  
+  return(out_df)
+}
+
+sim_results = 
+     expand_grid(
+        true_mean=c(0, 1, 2, 3, 4, 5, 6),
+        iter = 1:5000)|> 
+   mutate(ttest_res = map(true_mean, ~ sim_ttest(samp_size = 30, true_mean = .x, true_sd = 5))) |> 
+   unnest(ttest_res)|>
+   mutate(
+      conclusion = ifelse(p_value > 0.05,1,0)
+   )
+
+```
+
+
+```{r power plots}
+
+power_plotdata=
+   sim_results|>
+   group_by(true_mean)|>
+   mutate(
+      prop_mean= mean(p_value<0.05))
+
+power_plot=
+   ggplot(power_plotdata, aes(x=true_mean, y = prop_mean))+
+   geom_point()+
+    labs(
+      title = "Power by True mu Value",
+      x = "True mu ",
+      y = "Proportion of Null Rejected")+
+      theme_minimal()
+
+```
+Based on the plot above, it is evident that the relationship between the effect size, the true mu, and the power, or the proportion of the cases where the null is rejected, is a positive one. As the effect size increases the power increases, seemingly in an exponential manner. 
+
+
+```{r sample avg plots}
+
+sampavg_plotdata=
+   sim_results|>
+   group_by(true_mean)|>
+   mutate(
+      avg_mean= mean(mu_hat))
+
+sampavg_plot=
+   ggplot(sampavg_plotdata, aes(x=true_mean, y = avg_mean))+
+   geom_point()+
+    labs(
+      title = "Avg mu v. True mu",
+      x = "True mu ",
+      y = "Average mu Value")+
+      theme_minimal()
 
 ```
